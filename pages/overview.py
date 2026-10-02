@@ -81,11 +81,3 @@ with right:
     fig.update_traces(hovertemplate="Month=%{x}<br>AOV=%{y:,.0f} Toman<extra></extra>")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
     st.plotly_chart(fig, use_container_width=True)
-
-with st.expander("Metric notes"):
-    st.markdown("""
-    - **Revenue** uses transactions linked to completed orders.
-    - **Buyer Rate** = customers with at least one completed order / all customers.
-    - **Repeat Purchase Rate** = customers with more than one completed order / buyers.
-    - Monetary values are presented in **Toman** based on the project context.
-    """)

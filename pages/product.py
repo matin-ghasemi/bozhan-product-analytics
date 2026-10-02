@@ -36,24 +36,32 @@ c1, c2, c3, c4 = st.columns(4)
 
 c1.metric("Total Sessions", format_number(visits["total_sessions"]))
 c2.metric("Avg. Page Views", f"{visits['average_page_views']:.1f}")
-c3.metric("Avg. Session Duration", format_duration(visits["average_session_seconds"]))
-c4.metric("AI Consultations", format_number(consultation["total_consultations"]))
+c3.metric(
+    "Avg. Session Duration",
+    format_duration(visits["average_session_seconds"]),
+)
+c4.metric(
+    "AI Consultations",
+    format_number(consultation["total_consultations"]),
+)
 
-c5, c6, c7 = st.columns(3)
+
+c5, c6, c7, c8 = st.columns(4)
 
 c5.metric(
     "Avg. Consultation Duration",
     format_duration(consultation["average_duration_seconds"]),
 )
+
 c6.metric(
     "Avg. Messages",
     f"{consultation['average_message_count']:.1f}",
 )
+
 c7.metric(
     "Post-Consultation Purchase Rate",
     format_percent(consultation["post_consultation_purchase_rate"]),
 )
-
 st.divider()
 
 left, right = st.columns(2)

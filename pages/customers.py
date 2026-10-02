@@ -16,16 +16,46 @@ page_header(
 metrics = get_customer_metrics()
 customers = get_customer_purchase_summary()
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Registered Customers", format_number(metrics["total_customers"]))
-c2.metric("Buyers", format_number(metrics["buyers"]))
-c3.metric("Repeat Buyers", format_number(metrics["repeat_buyers"]))
-c4.metric("Repeat Purchase Rate", format_percent(metrics["repeat_purchase_rate"]))
+buyer_rate = (
+    metrics["buyers"] / metrics["total_customers"] * 100
+    if metrics["total_customers"]
+    else 0
+)
 
-buyer_rate = metrics["buyers"] / metrics["total_customers"] * 100 if metrics["total_customers"] else 0
-st.caption(
-    f"Buyer rate: {format_percent(buyer_rate)} · "
-    f"Average completed orders per registered customer: {metrics['average_orders_per_customer']:.2f}"
+# First KPI row
+c1, c2, c3 = st.columns(3)
+
+c1.metric(
+    "Registered Customers",
+    format_number(metrics["total_customers"]),
+)
+
+c2.metric(
+    "Buyers",
+    format_number(metrics["buyers"]),
+)
+
+c3.metric(
+    "Buyer Rate",
+    format_percent(buyer_rate),
+)
+
+# Second KPI row
+c4, c5, c6 = st.columns(3)
+
+c4.metric(
+    "Repeat Buyers",
+    format_number(metrics["repeat_buyers"]),
+)
+
+c5.metric(
+    "Repeat Purchase Rate",
+    format_percent(metrics["repeat_purchase_rate"]),
+)
+
+c6.metric(
+    "Avg. Orders / Customer",
+    f"{metrics['average_orders_per_customer']:.2f}",
 )
 
 st.divider()
@@ -63,10 +93,3 @@ fig.update_xaxes(tickformat=",")
 fig.update_traces(hovertemplate="Customer ID=%{y}<br>Revenue=%{x:,.0f} Toman<extra></extra>")
 fig.update_layout(yaxis={"categoryorder": "total ascending"}, margin=dict(l=0, r=0, t=20, b=0))
 st.plotly_chart(fig, use_container_width=True)
-
-with st.expander("Metric definition"):
-    st.markdown("""
-    - **Buyer**: customer with at least one completed order.
-    - **Repeat Buyer**: customer with more than one completed order.
-    - **Repeat Purchase Rate**: repeat buyers / buyers.
-    """)

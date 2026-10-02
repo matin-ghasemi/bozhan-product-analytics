@@ -86,12 +86,3 @@ st.dataframe(
         "cost_per_conversion": st.column_config.NumberColumn("Cost per Conversion (Toman)", format="%,.0f"),
     },
 )
-
-with st.expander("Revenue allocation note"):
-    st.markdown("""
-    Product-level revenue is not directly available in the dataset because transaction
-    revenue is recorded at the order level and product prices are missing.
-
-    The query layer therefore allocates each order's transaction amount proportionally
-    by item quantity. Product **units sold** should be treated as the stronger direct metric.
-    """)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import pandas as pd
 
 from src.db import get_connection
@@ -9,7 +11,7 @@ from src.db import get_connection
 
 def _read_sql(query: str, params: dict | None = None) -> pd.DataFrame:
     """Run a SQL query and return the result as a DataFrame."""
-    with get_connection() as connection:
+    with closing(get_connection()) as connection:
         return pd.read_sql_query(query, connection, params=params or {})
 
 
@@ -20,7 +22,8 @@ def get_overview_metrics() -> dict:
             COUNT(DISTINCT o.order_id) AS total_orders,
             COUNT(DISTINCT o.user_id) AS purchasing_customers,
             COALESCE(SUM(t.amount), 0) AS total_revenue,
-            COALESCE(AVG(t.amount), 0) AS average_order_value
+            COALESCE(1.0 * SUM(t.amount) /
+                NULLIF(COUNT(DISTINCT o.order_id), 0), 0) AS average_order_value
         FROM orders AS o
         LEFT JOIN transactions AS t
             ON t.order_id = o.order_id
@@ -44,10 +47,11 @@ def get_monthly_performance() -> pd.DataFrame:
             strftime('%Y-%m', o.order_date) AS month,
             COUNT(DISTINCT o.order_id) AS orders,
             COUNT(DISTINCT o.user_id) AS customers,
-            SUM(t.amount) AS revenue,
-            AVG(t.amount) AS average_order_value
+            COALESCE(SUM(t.amount), 0) AS revenue,
+            COALESCE(1.0 * SUM(t.amount) /
+                NULLIF(COUNT(DISTINCT o.order_id), 0), 0) AS average_order_value
         FROM orders AS o
-        JOIN transactions AS t
+        LEFT JOIN transactions AS t
             ON t.order_id = o.order_id
         WHERE o.status = 'Completed'
         GROUP BY strftime('%Y-%m', o.order_date)
@@ -66,7 +70,9 @@ def get_payment_method_performance() -> pd.DataFrame:
                 COUNT(*) AS transactions,
                 SUM(amount) AS revenue,
                 AVG(amount) AS average_transaction_value
-            FROM transactions
+            FROM transactions AS t
+            JOIN orders AS o ON o.order_id = t.order_id
+            WHERE o.status = 'Completed'
             GROUP BY payment_type
         )
         SELECT
@@ -89,7 +95,11 @@ def get_payment_method_performance() -> pd.DataFrame:
 def get_product_performance() -> pd.DataFrame:
     """Return product-level sales volume and allocated revenue."""
     query = """
-        WITH order_quantities AS (
+        WITH order_payments AS (
+            SELECT order_id, SUM(amount) AS amount
+            FROM transactions
+            GROUP BY order_id
+        ), order_quantities AS (
             SELECT
                 order_id,
                 SUM(quantity) AS total_quantity
@@ -104,7 +114,7 @@ def get_product_performance() -> pd.DataFrame:
                 od.order_id,
                 od.quantity,
                 p.stock_quantity,
-                t.amount * od.quantity * 1.0 / oq.total_quantity
+                COALESCE(t.amount, 0) * od.quantity * 1.0 / oq.total_quantity
                     AS allocated_revenue
             FROM order_details AS od
             JOIN order_quantities AS oq
@@ -113,8 +123,10 @@ def get_product_performance() -> pd.DataFrame:
                 ON p.product_id = od.product_id
             JOIN categories AS c
                 ON c.category_id = p.category_id
-            JOIN transactions AS t
+            JOIN orders AS o ON o.order_id = od.order_id
+            LEFT JOIN order_payments AS t
                 ON t.order_id = od.order_id
+            WHERE o.status = 'Completed'
         )
         SELECT
             product_id,
@@ -146,10 +158,12 @@ def get_category_performance() -> pd.DataFrame:
             SUM(od.quantity) AS units_sold,
             COUNT(DISTINCT p.product_id) AS products
         FROM order_details AS od
+        JOIN orders AS o ON o.order_id = od.order_id
         JOIN products AS p
             ON p.product_id = od.product_id
         JOIN categories AS c
             ON c.category_id = p.category_id
+        WHERE o.status = 'Completed'
         GROUP BY c.category_id, c.name
         ORDER BY units_sold DESC;
     """
@@ -163,10 +177,10 @@ def get_visit_metrics() -> dict:
         SELECT
             COUNT(*) AS total_sessions,
             COUNT(DISTINCT user_id) AS unique_visitors,
-            AVG(page_views) AS average_page_views,
-            AVG(
+            COALESCE(AVG(page_views), 0) AS average_page_views,
+            COALESCE(AVG(
                 (julianday(end_time) - julianday(start_time)) * 86400
-            ) AS average_session_seconds
+            ), 0) AS average_session_seconds
         FROM visits;
     """
 
@@ -235,9 +249,9 @@ def get_customer_metrics() -> dict:
         )
         SELECT
             COUNT(*) AS total_customers,
-            SUM(CASE WHEN order_count > 0 THEN 1 ELSE 0 END) AS buyers,
-            SUM(CASE WHEN order_count > 1 THEN 1 ELSE 0 END) AS repeat_buyers,
-            AVG(order_count) AS average_orders_per_customer
+            COALESCE(SUM(CASE WHEN order_count > 0 THEN 1 ELSE 0 END), 0) AS buyers,
+            COALESCE(SUM(CASE WHEN order_count > 1 THEN 1 ELSE 0 END), 0) AS repeat_buyers,
+            COALESCE(AVG(order_count), 0) AS average_orders_per_customer
         FROM customer_orders;
     """
 
@@ -285,9 +299,9 @@ def get_consultation_metrics() -> dict:
             (SELECT COUNT(*) FROM consultations) AS total_consultations,
             (SELECT COUNT(DISTINCT user_id) FROM consultations)
                 AS consultation_users,
-            (SELECT AVG(duration_seconds) FROM consultations)
+            (SELECT COALESCE(AVG(duration_seconds), 0) FROM consultations)
                 AS avg_duration_seconds,
-            (SELECT AVG(message_count) FROM consultations)
+            (SELECT COALESCE(AVG(message_count), 0) FROM consultations)
                 AS avg_message_count,
             COALESCE(SUM(purchased_after_consultation), 0)
                 AS users_purchased_after_consultation
@@ -342,7 +356,7 @@ def get_sales_call_metrics() -> dict:
         SELECT
             COUNT(*) AS total_calls,
             COALESCE(SUM(is_purchased), 0) AS purchases,
-            AVG(call_duration) AS average_call_duration
+            COALESCE(AVG(call_duration), 0) AS average_call_duration
         FROM sales_calls;
     """
 
@@ -389,7 +403,7 @@ def get_marketing_campaign_performance() -> pd.DataFrame:
 
 
 def get_available_months() -> list[str]:
-    """Return all months that have order or visit activity."""
+    """Return all months that have order, visit, or consultation activity."""
     query = """
         SELECT month
         FROM (
@@ -402,6 +416,12 @@ def get_available_months() -> list[str]:
             SELECT DISTINCT strftime('%Y-%m', start_time) AS month
             FROM visits
             WHERE start_time IS NOT NULL
+
+            UNION
+
+            SELECT DISTINCT strftime('%Y-%m', consultation_date) AS month
+            FROM consultations
+            WHERE consultation_date IS NOT NULL
         )
         WHERE month IS NOT NULL
         ORDER BY month;
@@ -584,7 +604,11 @@ def get_monthly_customer_mix(month: str) -> pd.DataFrame:
 def get_monthly_product_performance(month: str) -> pd.DataFrame:
     """Return product sales and allocated revenue for one month."""
     query = """
-        WITH order_quantities AS (
+        WITH order_payments AS (
+            SELECT order_id, SUM(amount) AS amount
+            FROM transactions
+            GROUP BY order_id
+        ), order_quantities AS (
             SELECT
                 od.order_id,
                 SUM(od.quantity) AS total_quantity
@@ -598,7 +622,7 @@ def get_monthly_product_performance(month: str) -> pd.DataFrame:
                 c.name AS category_name,
                 od.order_id,
                 od.quantity,
-                t.amount * od.quantity * 1.0 / oq.total_quantity
+                COALESCE(t.amount, 0) * od.quantity * 1.0 / oq.total_quantity
                     AS allocated_revenue
             FROM orders AS o
             JOIN order_details AS od
@@ -609,7 +633,7 @@ def get_monthly_product_performance(month: str) -> pd.DataFrame:
                 ON p.product_id = od.product_id
             JOIN categories AS c
                 ON c.category_id = p.category_id
-            JOIN transactions AS t
+            LEFT JOIN order_payments AS t
                 ON t.order_id = o.order_id
             WHERE o.status = 'Completed'
               AND strftime('%Y-%m', o.order_date) = :month

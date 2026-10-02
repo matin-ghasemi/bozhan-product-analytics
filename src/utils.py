@@ -33,9 +33,19 @@ def format_number(value: float | int, decimals: int = 0) -> str:
     return f"{value:,.{decimals}f}"
 
 
-def format_money(value: float | int) -> str:
-    """Format monetary values without assuming a currency."""
-    return f"{value:,.0f}"
+def format_money(value: float | int, compact: bool = False) -> str:
+    """Format monetary values in Toman."""
+    if compact:
+        abs_value = abs(value)
+
+        if abs_value >= 1_000_000_000:
+            return f"{value / 1_000_000_000:.1f}B Toman"
+        if abs_value >= 1_000_000:
+            return f"{value / 1_000_000:.1f}M Toman"
+        if abs_value >= 1_000:
+            return f"{value / 1_000:.1f}K Toman"
+
+    return f"{value:,.0f} Toman"
 
 
 def format_percent(value: float, decimals: int = 1) -> str:

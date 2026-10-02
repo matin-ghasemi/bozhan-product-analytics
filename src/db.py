@@ -1,5 +1,6 @@
 """Database configuration and schema for the startup analytics dashboard."""
 
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 
@@ -144,7 +145,7 @@ def create_schema(connection: sqlite3.Connection) -> None:
 
 def init_db(db_path: Path = DB_PATH) -> None:
     """Initialize an empty SQLite database."""
-    with get_connection(db_path) as connection:
+    with closing(get_connection(db_path)) as connection:
         create_schema(connection)
 
 

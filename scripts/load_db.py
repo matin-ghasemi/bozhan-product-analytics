@@ -1,6 +1,7 @@
 """Load the startup Excel workbook into SQLite."""
 
 from argparse import ArgumentParser
+from contextlib import closing
 from pathlib import Path
 import sys
 
@@ -42,6 +43,14 @@ LOAD_ORDER = [
 ]
 
 
+def to_integer(series: pd.Series) -> pd.Series:
+    """Reject missing or fractional values instead of silently truncating them."""
+    numeric = pd.to_numeric(series, errors="raise")
+    if numeric.isna().any() or (numeric % 1 != 0).any():
+        raise ValueError(f"{series.name}: expected non-null whole numbers")
+    return numeric.astype("int64")
+
+
 def money_to_int(series: pd.Series) -> pd.Series:
     """Convert currency strings such as '$4,932,900' to integers."""
     cleaned = (
@@ -50,7 +59,7 @@ def money_to_int(series: pd.Series) -> pd.Series:
         .str.replace(",", "", regex=False)
         .str.strip()
     )
-    return pd.to_numeric(cleaned, errors="raise").astype("int64")
+    return to_integer(cleaned)
 
 
 def to_datetime_iso(series: pd.Series) -> pd.Series:
@@ -94,7 +103,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         require_columns(df, table_name, columns)
         df = df[columns].copy()
 
-        df["user_id"] = pd.to_numeric(df["user_id"], errors="raise").astype("int64")
+        df["user_id"] = to_integer(df["user_id"])
         df["name"] = df["name"].astype("string").str.strip()
         df["email"] = df["email"].astype("string").str.strip()
         df["signup_date"] = to_date_iso(df["signup_date"])
@@ -104,9 +113,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         require_columns(df, table_name, columns)
         df = df[columns].copy()
 
-        df["category_id"] = pd.to_numeric(
-            df["category_id"], errors="raise"
-        ).astype("int64")
+        df["category_id"] = to_integer(df["category_id"])
         df["name"] = df["name"].astype("string").str.strip()
 
     elif table_name == "products":
@@ -115,7 +122,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         df = df[columns].copy()
 
         for column in ["product_id", "category_id", "stock_quantity"]:
-            df[column] = pd.to_numeric(df[column], errors="raise").astype("int64")
+            df[column] = to_integer(df[column])
 
         df["name"] = df["name"].astype("string").str.strip()
 
@@ -125,7 +132,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         df = df[columns].copy()
 
         for column in ["session_id", "user_id", "page_views"]:
-            df[column] = pd.to_numeric(df[column], errors="raise").astype("int64")
+            df[column] = to_integer(df[column])
 
         df["start_time"] = to_datetime_iso(df["start_time"])
         df["end_time"] = to_datetime_iso(df["end_time"])
@@ -135,8 +142,8 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         require_columns(df, table_name, columns)
         df = df[columns].copy()
 
-        df["order_id"] = pd.to_numeric(df["order_id"], errors="raise").astype("int64")
-        df["user_id"] = pd.to_numeric(df["user_id"], errors="raise").astype("int64")
+        df["order_id"] = to_integer(df["order_id"])
+        df["user_id"] = to_integer(df["user_id"])
         df["order_date"] = to_datetime_iso(df["order_date"])
         df["status"] = df["status"].astype("string").str.strip()
 
@@ -146,7 +153,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         df = df[columns].copy()
 
         for column in columns:
-            df[column] = pd.to_numeric(df[column], errors="raise").astype("int64")
+            df[column] = to_integer(df[column])
 
     elif table_name == "transactions":
         columns = [
@@ -159,10 +166,8 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         require_columns(df, table_name, columns)
         df = df[columns].copy()
 
-        df["transaction_id"] = pd.to_numeric(
-            df["transaction_id"], errors="raise"
-        ).astype("int64")
-        df["order_id"] = pd.to_numeric(df["order_id"], errors="raise").astype("int64")
+        df["transaction_id"] = to_integer(df["transaction_id"])
+        df["order_id"] = to_integer(df["order_id"])
         df["payment_type"] = df["payment_type"].astype("string").str.strip()
         df["amount"] = money_to_int(df["amount"])
         df["transaction_date"] = to_datetime_iso(df["transaction_date"])
@@ -186,15 +191,11 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
             }
         )
 
-        df["consultation_id"] = pd.to_numeric(
-            df["consultation_id"], errors="raise"
-        ).astype("int64")
-        df["user_id"] = pd.to_numeric(df["user_id"], errors="raise").astype("int64")
+        df["consultation_id"] = to_integer(df["consultation_id"])
+        df["user_id"] = to_integer(df["user_id"])
         df["consultation_date"] = to_datetime_iso(df["consultation_date"])
         df["duration_seconds"] = duration_to_seconds(df["duration_seconds"])
-        df["message_count"] = pd.to_numeric(
-            df["message_count"], errors="raise"
-        ).astype("int64")
+        df["message_count"] = to_integer(df["message_count"])
 
     elif table_name == "sales_calls":
         columns = ["call_id", "user_id", "call_duration", "is_purchased"]
@@ -202,7 +203,7 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         df = df[columns].copy()
 
         for column in columns:
-            df[column] = pd.to_numeric(df[column], errors="raise").astype("int64")
+            df[column] = to_integer(df[column])
 
     elif table_name == "marketing_campaigns":
         columns = [
@@ -216,16 +217,12 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
         require_columns(df, table_name, columns)
         df = df[columns].copy()
 
-        df["campaign_id"] = pd.to_numeric(
-            df["campaign_id"], errors="raise"
-        ).astype("int64")
+        df["campaign_id"] = to_integer(df["campaign_id"])
         df["start_date"] = to_date_iso(df["start_date"])
         df["end_date"] = to_date_iso(df["end_date"])
         df["budget"] = money_to_int(df["budget"])
-        df["clicks"] = pd.to_numeric(df["clicks"], errors="raise").astype("int64")
-        df["conversions"] = pd.to_numeric(
-            df["conversions"], errors="raise"
-        ).astype("int64")
+        df["clicks"] = to_integer(df["clicks"])
+        df["conversions"] = to_integer(df["conversions"])
 
     else:
         raise ValueError(f"Unsupported table: {table_name}")
@@ -237,6 +234,15 @@ def prepare_table(table_name: str, df: pd.DataFrame) -> pd.DataFrame:
             f"{', '.join(null_columns)}"
         )
 
+    text_columns = df.select_dtypes(include="string").columns
+    for column in text_columns:
+        if df[column].str.strip().eq("").any():
+            raise ValueError(f"{table_name}: empty values in {column}")
+
+    for start, end in [("start_time", "end_time"), ("start_date", "end_date")]:
+        if start in df and end in df and (df[end] < df[start]).any():
+            raise ValueError(f"{table_name}: {end} precedes {start}")
+
     return df
 
 
@@ -247,31 +253,27 @@ def read_workbook(excel_path: Path) -> dict[str, pd.DataFrame]:
     if not excel_path.exists():
         raise FileNotFoundError(f"Excel file not found: {excel_path}")
 
-    workbook = pd.ExcelFile(excel_path)
+    with pd.ExcelFile(excel_path) as workbook:
 
-    missing_sheets = set(SHEETS.values()) - set(workbook.sheet_names)
-    if missing_sheets:
-        raise ValueError(
-            "Missing worksheets: " + ", ".join(sorted(missing_sheets))
-        )
+        missing_sheets = set(SHEETS.values()) - set(workbook.sheet_names)
+        if missing_sheets:
+            raise ValueError(
+                "Missing worksheets: " + ", ".join(sorted(missing_sheets))
+            )
 
-    tables = {}
+        tables = {}
 
-    for table_name, sheet_name in SHEETS.items():
-        raw_df = pd.read_excel(workbook, sheet_name=sheet_name)
-        tables[table_name] = prepare_table(table_name, raw_df)
+        for table_name, sheet_name in SHEETS.items():
+            raw_df = pd.read_excel(workbook, sheet_name=sheet_name)
+            tables[table_name] = prepare_table(table_name, raw_df)
 
-    return tables
+        return tables
 
 
 def reset_database(connection) -> None:
     """Delete existing rows while respecting foreign-key relationships."""
-    connection.execute("PRAGMA foreign_keys = OFF;")
-
     for table_name in reversed(LOAD_ORDER):
         connection.execute(f"DELETE FROM {table_name};")
-
-    connection.execute("PRAGMA foreign_keys = ON;")
 
 
 def load_database(
@@ -282,22 +284,23 @@ def load_database(
     """Load all Excel worksheets into SQLite."""
     tables = read_workbook(excel_path)
 
-    with get_connection(db_path) as connection:
+    with closing(get_connection(db_path)) as connection:
         create_schema(connection)
 
-        if reset:
-            reset_database(connection)
+        # One transaction covers deletion and every insert. pandas.to_sql with a
+        # raw SQLite connection commits each table, so use executemany instead.
+        with connection:
+            if reset:
+                reset_database(connection)
 
-        for table_name in LOAD_ORDER:
-            tables[table_name].to_sql(
-                table_name,
-                connection,
-                if_exists="append",
-                index=False,
-                method="multi",
-            )
-
-        connection.commit()
+            for table_name in LOAD_ORDER:
+                table = tables[table_name]
+                columns = ', '.join(f'"{column}"' for column in table.columns)
+                placeholders = ', '.join('?' for _ in table.columns)
+                connection.executemany(
+                    f'INSERT INTO {table_name} ({columns}) VALUES ({placeholders})',
+                    table.itertuples(index=False, name=None),
+                )
 
     return {
         table_name: len(tables[table_name])

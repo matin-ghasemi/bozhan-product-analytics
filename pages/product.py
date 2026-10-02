@@ -21,7 +21,7 @@ from src.utils import (
 ensure_database()
 
 page_header(
-    "Product & AI",
+    "Product",
     "Website engagement and AI consultation behavior, including post-consultation purchase signals.",
 )
 
@@ -37,7 +37,7 @@ c2.metric("Avg. Page Views", f"{visits['average_page_views']:.1f}")
 c3.metric("Avg. Session Duration", format_duration(visits["average_session_seconds"]))
 c4.metric("AI Consultations", format_number(consultation["total_consultations"]))
 
-c5, c6, c7 = st.columns(3)
+c5, c6, c7, c8 = st.columns(4)
 
 c5.metric(
     "Avg. Consultation Duration",

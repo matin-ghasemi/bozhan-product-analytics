@@ -386,3 +386,297 @@ def get_marketing_campaign_performance() -> pd.DataFrame:
     """
 
     return _read_sql(query)
+
+
+def get_available_months() -> list[str]:
+    """Return all months that have order or visit activity."""
+    query = """
+        SELECT month
+        FROM (
+            SELECT DISTINCT strftime('%Y-%m', order_date) AS month
+            FROM orders
+            WHERE order_date IS NOT NULL
+
+            UNION
+
+            SELECT DISTINCT strftime('%Y-%m', start_time) AS month
+            FROM visits
+            WHERE start_time IS NOT NULL
+        )
+        WHERE month IS NOT NULL
+        ORDER BY month;
+    """
+
+    return _read_sql(query)["month"].tolist()
+
+
+def get_monthly_review_metrics(month: str) -> dict:
+    """Return the main KPIs for one selected month."""
+    query = """
+        WITH completed_orders AS (
+            SELECT
+                order_id,
+                user_id
+            FROM orders
+            WHERE status = 'Completed'
+              AND strftime('%Y-%m', order_date) = :month
+        ),
+        order_metrics AS (
+            SELECT
+                COUNT(*) AS orders,
+                COUNT(DISTINCT user_id) AS buyers
+            FROM completed_orders
+        ),
+        revenue_metrics AS (
+            SELECT
+                COALESCE(SUM(t.amount), 0) AS revenue
+            FROM transactions AS t
+            JOIN completed_orders AS o
+                ON o.order_id = t.order_id
+        ),
+        visit_metrics AS (
+            SELECT
+                COUNT(*) AS sessions,
+                COUNT(DISTINCT user_id) AS unique_visitors
+            FROM visits
+            WHERE strftime('%Y-%m', start_time) = :month
+        ),
+        consultation_metrics AS (
+            SELECT
+                COUNT(*) AS consultations
+            FROM consultations
+            WHERE strftime('%Y-%m', consultation_date) = :month
+        )
+        SELECT
+            om.orders,
+            om.buyers,
+            rm.revenue,
+            CASE
+                WHEN om.orders > 0
+                THEN 1.0 * rm.revenue / om.orders
+                ELSE 0
+            END AS average_order_value,
+            vm.sessions,
+            vm.unique_visitors,
+            cm.consultations
+        FROM order_metrics AS om
+        CROSS JOIN revenue_metrics AS rm
+        CROSS JOIN visit_metrics AS vm
+        CROSS JOIN consultation_metrics AS cm;
+    """
+
+    row = _read_sql(query, {"month": month}).iloc[0]
+
+    buyers = int(row["buyers"])
+    visitors = int(row["unique_visitors"])
+
+    return {
+        "month": month,
+        "revenue": float(row["revenue"]),
+        "orders": int(row["orders"]),
+        "buyers": buyers,
+        "average_order_value": float(row["average_order_value"]),
+        "sessions": int(row["sessions"]),
+        "unique_visitors": visitors,
+        "consultations": int(row["consultations"]),
+        "buyer_rate": buyers / visitors * 100 if visitors else 0,
+    }
+
+
+def get_monthly_daily_activity(month: str) -> pd.DataFrame:
+    """Return daily revenue, completed orders, and sessions for one month."""
+    query = """
+        WITH order_daily AS (
+            SELECT
+                date(o.order_date) AS day,
+                COUNT(DISTINCT o.order_id) AS orders,
+                COALESCE(SUM(t.amount), 0) AS revenue
+            FROM orders AS o
+            LEFT JOIN transactions AS t
+                ON t.order_id = o.order_id
+            WHERE o.status = 'Completed'
+              AND strftime('%Y-%m', o.order_date) = :month
+            GROUP BY date(o.order_date)
+        ),
+        visit_daily AS (
+            SELECT
+                date(start_time) AS day,
+                COUNT(*) AS sessions
+            FROM visits
+            WHERE strftime('%Y-%m', start_time) = :month
+            GROUP BY date(start_time)
+        ),
+        days AS (
+            SELECT day FROM order_daily
+            UNION
+            SELECT day FROM visit_daily
+        )
+        SELECT
+            d.day,
+            COALESCE(od.orders, 0) AS orders,
+            COALESCE(od.revenue, 0) AS revenue,
+            COALESCE(vd.sessions, 0) AS sessions
+        FROM days AS d
+        LEFT JOIN order_daily AS od
+            ON od.day = d.day
+        LEFT JOIN visit_daily AS vd
+            ON vd.day = d.day
+        ORDER BY d.day;
+    """
+
+    return _read_sql(query, {"month": month})
+
+
+def get_monthly_payment_performance(month: str) -> pd.DataFrame:
+    """Return payment-method performance for completed orders in one month."""
+    query = """
+        SELECT
+            t.payment_type,
+            COUNT(*) AS transactions,
+            SUM(t.amount) AS revenue,
+            AVG(t.amount) AS average_transaction_value
+        FROM transactions AS t
+        JOIN orders AS o
+            ON o.order_id = t.order_id
+        WHERE o.status = 'Completed'
+          AND strftime('%Y-%m', o.order_date) = :month
+        GROUP BY t.payment_type
+        ORDER BY revenue DESC;
+    """
+
+    return _read_sql(query, {"month": month})
+
+
+def get_monthly_customer_mix(month: str) -> pd.DataFrame:
+    """Return new-vs-returning buyer counts for one month."""
+    query = """
+        WITH month_buyers AS (
+            SELECT DISTINCT user_id
+            FROM orders
+            WHERE status = 'Completed'
+              AND strftime('%Y-%m', order_date) = :month
+        ),
+        first_purchase AS (
+            SELECT
+                user_id,
+                MIN(strftime('%Y-%m', order_date)) AS first_purchase_month
+            FROM orders
+            WHERE status = 'Completed'
+            GROUP BY user_id
+        )
+        SELECT
+            CASE
+                WHEN fp.first_purchase_month = :month
+                THEN 'New Buyer'
+                ELSE 'Returning Buyer'
+            END AS segment,
+            COUNT(*) AS customers
+        FROM month_buyers AS mb
+        JOIN first_purchase AS fp
+            ON fp.user_id = mb.user_id
+        GROUP BY segment
+        ORDER BY customers DESC;
+    """
+
+    return _read_sql(query, {"month": month})
+
+
+def get_monthly_product_performance(month: str) -> pd.DataFrame:
+    """Return product sales and allocated revenue for one month."""
+    query = """
+        WITH order_quantities AS (
+            SELECT
+                od.order_id,
+                SUM(od.quantity) AS total_quantity
+            FROM order_details AS od
+            GROUP BY od.order_id
+        ),
+        product_sales AS (
+            SELECT
+                p.product_id,
+                p.name AS product_name,
+                c.name AS category_name,
+                od.order_id,
+                od.quantity,
+                t.amount * od.quantity * 1.0 / oq.total_quantity
+                    AS allocated_revenue
+            FROM orders AS o
+            JOIN order_details AS od
+                ON od.order_id = o.order_id
+            JOIN order_quantities AS oq
+                ON oq.order_id = od.order_id
+            JOIN products AS p
+                ON p.product_id = od.product_id
+            JOIN categories AS c
+                ON c.category_id = p.category_id
+            JOIN transactions AS t
+                ON t.order_id = o.order_id
+            WHERE o.status = 'Completed'
+              AND strftime('%Y-%m', o.order_date) = :month
+        )
+        SELECT
+            product_id,
+            product_name,
+            category_name,
+            SUM(quantity) AS units_sold,
+            COUNT(DISTINCT order_id) AS orders,
+            ROUND(SUM(allocated_revenue), 2) AS allocated_revenue
+        FROM product_sales
+        GROUP BY
+            product_id,
+            product_name,
+            category_name
+        ORDER BY units_sold DESC, allocated_revenue DESC;
+    """
+
+    return _read_sql(query, {"month": month})
+
+
+def get_monthly_category_performance(month: str) -> pd.DataFrame:
+    """Return category sales volume for completed orders in one month."""
+    query = """
+        SELECT
+            c.category_id,
+            c.name AS category_name,
+            COUNT(DISTINCT o.order_id) AS orders,
+            SUM(od.quantity) AS units_sold
+        FROM orders AS o
+        JOIN order_details AS od
+            ON od.order_id = o.order_id
+        JOIN products AS p
+            ON p.product_id = od.product_id
+        JOIN categories AS c
+            ON c.category_id = p.category_id
+        WHERE o.status = 'Completed'
+          AND strftime('%Y-%m', o.order_date) = :month
+        GROUP BY c.category_id, c.name
+        ORDER BY units_sold DESC;
+    """
+
+    return _read_sql(query, {"month": month})
+
+
+def get_monthly_consultation_outcomes(month: str) -> pd.DataFrame:
+    """Return later-purchase outcomes for consultations in one month."""
+    query = """
+        SELECT
+            CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM orders AS o
+                    WHERE o.user_id = c.user_id
+                      AND o.status = 'Completed'
+                      AND o.order_date >= c.consultation_date
+                )
+                THEN 'Purchased later'
+                ELSE 'No later purchase'
+            END AS outcome,
+            COUNT(*) AS consultations
+        FROM consultations AS c
+        WHERE strftime('%Y-%m', c.consultation_date) = :month
+        GROUP BY outcome
+        ORDER BY consultations DESC;
+    """
+
+    return _read_sql(query, {"month": month})
+

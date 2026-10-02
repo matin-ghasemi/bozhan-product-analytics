@@ -24,6 +24,12 @@ overview_page = st.Page(
     default=True,
 )
 
+monthly_review_page = st.Page(
+    "pages/monthly_review.py",
+    title="Monthly Review",
+    icon=":material/calendar_month:",
+)
+
 commercial_page = st.Page(
     "pages/commercial.py",
     title="Commercial",
@@ -49,6 +55,7 @@ navigation = st.navigation(
             commercial_page,
             product_ai_page,
             customers_page,
+            monthly_review_page
         ]
     }
 )

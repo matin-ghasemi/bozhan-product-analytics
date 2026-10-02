@@ -1,7 +1,8 @@
 """Streamlit entry point and navigation configuration."""
 
-from src.utils import ensure_database
 from pathlib import Path
+
+from src.utils import ensure_database
 
 import streamlit as st
 
@@ -9,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR / "assets" / "icon.png"
 
 st.set_page_config(
-    page_title="Startup Product Analytics",
+    page_title="Bozhan Product Analytics",
     page_icon=str(ICON_PATH),
     layout="wide",
     initial_sidebar_state="expanded",
@@ -55,7 +56,7 @@ navigation = st.navigation(
             commercial_page,
             product_ai_page,
             customers_page,
-            monthly_review_page
+            monthly_review_page,
         ]
     }
 )

@@ -115,7 +115,7 @@ with left:
 
     st.plotly_chart(
         fig,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -175,7 +175,7 @@ with right:
 
     st.plotly_chart(
         fig,
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -189,10 +189,7 @@ top_customers = (
     customers[
         customers["revenue"] > 0
     ]
-    .nlargest(
-        15,
-        "revenue",
-    )
+    .head(15)
     .copy()
 )
 
@@ -241,5 +238,5 @@ fig.update_layout(
 
 st.plotly_chart(
     fig,
-    use_container_width=True,
+    width="stretch",
 )

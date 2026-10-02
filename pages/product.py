@@ -62,6 +62,12 @@ c7.metric(
     "Post-Consultation Purchase Rate",
     format_percent(consultation["post_consultation_purchase_rate"]),
 )
+c8.metric(
+    "Consultation Users",
+    format_number(consultation["consultation_users"]),
+)
+
+st.caption("Purchase rate counts unique consultation users with a completed order at or after their first consultation, with no attribution window. It does not establish AI impact.")
 st.divider()
 
 left, right = st.columns(2)
@@ -76,7 +82,7 @@ with left:
         labels={"month": "Month", "sessions": "Sessions"},
     )
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Consultation Duration vs. Messages")
@@ -114,9 +120,10 @@ with right:
         }
     )
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("AI Consultation Outcomes")
+st.caption("This chart counts consultations, including repeated users, rather than unique users.")
 
 outcome_counts = (
     details["purchased_after_consultation"]
@@ -126,13 +133,13 @@ outcome_counts = (
     })
     .value_counts()
     .rename_axis("outcome")
-    .reset_index(name="users")
+    .reset_index(name="consultations")
 )
 
-total_consultations = outcome_counts["users"].sum()
+total_consultations = outcome_counts["consultations"].sum()
 
 outcome_counts["percentage"] = (
-    outcome_counts["users"] / total_consultations * 100
+    outcome_counts["consultations"] / total_consultations * 100
 )
 
 # One horizontal bar
@@ -140,7 +147,7 @@ outcome_counts["group"] = "Consultations"
 
 fig = px.bar(
     outcome_counts,
-    x="users",
+    x="consultations",
     y="group",
     color="outcome",
     orientation="h",
@@ -157,7 +164,7 @@ fig = px.bar(
     },
     custom_data=["percentage"],
     labels={
-        "users": "Consultations",
+        "consultations": "Consultations",
         "group": "",
         "outcome": "Outcome",
     },
@@ -207,5 +214,5 @@ fig.update_yaxes(showticklabels=False)
 
 st.plotly_chart(
     fig,
-    use_container_width=True,
+    width="stretch",
 )

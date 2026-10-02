@@ -13,7 +13,6 @@ from src.queries import (
     get_monthly_payment_performance,
     get_monthly_product_performance,
     get_monthly_review_metrics,
-    get_available_months
 )
 from src.theme import MATERIAL
 from src.utils import (
@@ -62,13 +61,12 @@ selected_month = st.selectbox(
     ).strftime("%B %Y"),
 )
 
-selected_index = months.index(selected_month)
-previous_month = months[selected_index - 1] if selected_index > 0 else None
+previous_month = str(pd.Period(selected_month, freq="M") - 1)
 
 metrics = get_monthly_review_metrics(selected_month)
 previous_metrics = (
     get_monthly_review_metrics(previous_month)
-    if previous_month
+    if previous_month in months
     else None
 )
 
@@ -153,7 +151,7 @@ k6.metric(
 )
 
 k7.metric(
-    "Buyer Rate",
+    "Buyers / Visitors",
     format_percent(metrics["buyer_rate"]),
 )
 
@@ -162,6 +160,7 @@ k8.metric(
     format_number(metrics["consultations"]),
 )
 
+st.caption("Buyers / Visitors compares two populations; purchases are not attributed to sessions.")
 st.divider()
 
 
@@ -199,7 +198,7 @@ with left:
         )
         fig.update_yaxes(tickformat=",")
         fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Daily Sessions")
@@ -220,7 +219,7 @@ with right:
         )
         fig.update_yaxes(tickformat=",")
         fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # -------------------------------------------------------------------
@@ -257,7 +256,7 @@ with left:
         )
         fig.update_yaxes(tickformat=",")
         fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("New vs. Returning Buyers")
@@ -289,7 +288,7 @@ with right:
             margin=dict(l=0, r=0, t=20, b=0),
             legend_title=None,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # -------------------------------------------------------------------
@@ -324,7 +323,7 @@ with left:
             color_discrete_sequence=[MATERIAL["ai"]],
         )
         fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Units Sold by Category")
@@ -343,7 +342,7 @@ with right:
             color_discrete_sequence=[MATERIAL["secondary"]],
         )
         fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # -------------------------------------------------------------------
@@ -353,6 +352,7 @@ with right:
 outcomes = get_monthly_consultation_outcomes(selected_month)
 
 st.subheader("AI Consultation Outcomes")
+st.caption("Counts consultations, including repeated users. Later purchases may occur after the selected month; this is an association, not evidence of AI impact.")
 
 if outcomes.empty:
     st.info("No AI consultations for this month.")
@@ -421,5 +421,5 @@ else:
 
     fig.update_yaxes(showticklabels=False)
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 

@@ -40,7 +40,10 @@ k4.metric("Purchasing Customers", format_number(overview["purchasing_customers"]
 k5, k6, k7, k8 = st.columns(4)
 k5.metric("Sessions", format_number(visits["total_sessions"]))
 k6.metric("Unique Visitors", format_number(visits["unique_visitors"]))
-k7.metric("Buyer Rate", format_percent(customers["buyers"] / customers["total_customers"] * 100))
+k7.metric("Buyer Rate", format_percent(
+    customers["buyers"] / customers["total_customers"] * 100
+    if customers["total_customers"] else 0
+))
 k8.metric("Repeat Purchase Rate", format_percent(customers["repeat_purchase_rate"]))
 
 st.divider()
@@ -53,7 +56,7 @@ with left:
     fig.update_yaxes(tickformat=",")
     fig.update_traces(hovertemplate="Month=%{x}<br>Revenue=%{y:,.0f} Toman<extra></extra>")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Orders by Month")
@@ -61,7 +64,7 @@ with right:
                  labels={"month": "Month", "orders": "Orders"})
     fig.update_yaxes(tickformat=",")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 left, right = st.columns(2)
 
@@ -71,7 +74,7 @@ with left:
                   labels={"month": "Month", "sessions": "Sessions"})
     fig.update_yaxes(tickformat=",")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("AOV by Month")
@@ -80,4 +83,4 @@ with right:
     fig.update_yaxes(tickformat=",")
     fig.update_traces(hovertemplate="Month=%{x}<br>AOV=%{y:,.0f} Toman<extra></extra>")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")

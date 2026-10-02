@@ -40,7 +40,7 @@ with left:
     fig.update_yaxes(tickformat=",")
     fig.update_traces(hovertemplate="Payment Method=%{x}<br>Revenue=%{y:,.0f} Toman<extra></extra>")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Transaction Share")
@@ -48,7 +48,7 @@ with right:
     fig.update_traces(textinfo="percent+label",
                       hovertemplate="%{label}<br>Transactions=%{value:,}<br>Share=%{percent}<extra></extra>")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 left, right = st.columns(2)
 
@@ -58,23 +58,24 @@ with left:
                  labels={"category_name": "Category", "units_sold": "Units Sold"})
     fig.update_yaxes(tickformat=",")
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with right:
     st.subheader("Top Products by Units Sold")
-    top_products = products.nlargest(10, "units_sold")
+    st.caption("Completed orders only; includes orders without recorded payment.")
+    top_products = products.head(10)
     fig = px.bar(top_products, x="units_sold", y="product_name", orientation="h",
                  labels={"units_sold": "Units Sold", "product_name": "Product"})
     fig.update_xaxes(tickformat=",")
     fig.update_layout(yaxis={"categoryorder": "total ascending"}, margin=dict(l=0, r=0, t=20, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("Marketing Campaign Efficiency")
 campaign_view = campaigns[["campaign_id", "budget", "clicks", "conversions", "conversion_rate_pct", "cost_per_click", "cost_per_conversion"]].copy()
 
 st.dataframe(
     campaign_view,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "campaign_id": st.column_config.NumberColumn("Campaign ID", format="%d"),

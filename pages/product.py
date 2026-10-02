@@ -3,6 +3,8 @@
 import plotly.express as px
 import streamlit as st
 
+from src.theme import MATERIAL
+
 from src.queries import (
     get_consultation_details,
     get_consultation_metrics,
@@ -37,7 +39,7 @@ c2.metric("Avg. Page Views", f"{visits['average_page_views']:.1f}")
 c3.metric("Avg. Session Duration", format_duration(visits["average_session_seconds"]))
 c4.metric("AI Consultations", format_number(consultation["total_consultations"]))
 
-c5, c6, c7, c8 = st.columns(4)
+c5, c6, c7 = st.columns(3)
 
 c5.metric(
     "Avg. Consultation Duration",
@@ -80,12 +82,28 @@ with right:
         x="duration_seconds",
         y="message_count",
         color="purchase_outcome",
+        color_discrete_map={
+            "Purchased later": MATERIAL["success"],
+            "No later purchase": MATERIAL["danger"],
+        },
+        category_orders={
+            "purchase_outcome": [
+                "Purchased later",
+                "No later purchase",
+            ]
+        },
         hover_data=["user_id"],
         labels={
             "duration_seconds": "Consultation Duration (seconds)",
             "message_count": "Message Count",
             "purchase_outcome": "Outcome",
         },
+    )
+    fig.update_traces(
+        marker={
+            "size": 11,
+            "opacity": 0.9,
+        }
     )
     fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
     st.plotly_chart(fig, use_container_width=True)
@@ -104,9 +122,26 @@ fig = px.bar(
     outcome_counts,
     x="outcome",
     y="users",
-    labels={"outcome": "Outcome", "users": "Consultations"},
+    color="outcome",
+    color_discrete_map={
+        "Purchased later": MATERIAL["success"],
+        "No later purchase": MATERIAL["danger"],
+    },
+    category_orders={
+        "outcome": [
+            "Purchased later",
+            "No later purchase",
+        ]
+    },
+    labels={
+        "outcome": "Outcome",
+        "users": "Consultations",
+    },
 )
-fig.update_layout(margin=dict(l=0, r=0, t=20, b=0))
+fig.update_layout(
+    showlegend=False,
+    margin=dict(l=0, r=0, t=20, b=0),
+)
 st.plotly_chart(fig, use_container_width=True)
 
 with st.expander("Important interpretation"):

@@ -112,17 +112,31 @@ st.subheader("AI Consultation Outcomes")
 
 outcome_counts = (
     details["purchased_after_consultation"]
-    .map({1: "Purchased later", 0: "No later purchase"})
+    .map({
+        1: "Purchased later",
+        0: "No later purchase",
+    })
     .value_counts()
     .rename_axis("outcome")
     .reset_index(name="users")
 )
 
+total_consultations = outcome_counts["users"].sum()
+
+outcome_counts["percentage"] = (
+    outcome_counts["users"] / total_consultations * 100
+)
+
+# One horizontal bar
+outcome_counts["group"] = "Consultations"
+
 fig = px.bar(
     outcome_counts,
-    x="outcome",
-    y="users",
+    x="users",
+    y="group",
     color="outcome",
+    orientation="h",
+    barmode="stack",
     color_discrete_map={
         "Purchased later": MATERIAL["success"],
         "No later purchase": MATERIAL["danger"],
@@ -133,24 +147,57 @@ fig = px.bar(
             "No later purchase",
         ]
     },
+    custom_data=["percentage"],
     labels={
-        "outcome": "Outcome",
         "users": "Consultations",
+        "group": "",
+        "outcome": "Outcome",
     },
 )
-fig.update_layout(
-    showlegend=False,
-    margin=dict(l=0, r=0, t=20, b=0),
+
+fig.update_traces(
+    texttemplate="%{x} (%{customdata[0]:.1f}%)",
+    textposition="inside",
+    insidetextanchor="middle",
+    hovertemplate=(
+        "%{fullData.name}<br>"
+        "Consultations: %{x}<br>"
+        "Share: %{customdata[0]:.1f}%"
+        "<extra></extra>"
+    ),
 )
-st.plotly_chart(fig, use_container_width=True)
 
-with st.expander("Important interpretation"):
-    st.markdown(
-        """
-        The dataset does not contain a direct event linking an AI consultation to an order.
-        Here, a user is counted as a **post-consultation purchaser** when they have a completed
-        order at or after their first consultation.
+fig.update_layout(
+    height=280,
 
-        This is an observational signal, not proof that the AI consultation caused the purchase.
-        """
-    )
+    legend=dict(
+        title=None,
+        orientation="h",
+        yanchor="bottom",
+        y=1.05,
+        xanchor="left",
+        x=0,
+    ),
+
+    xaxis_title="Consultations",
+    yaxis_title=None,
+
+    margin=dict(
+        l=0,
+        r=0,
+        t=70,
+        b=0,
+        ),
+)
+
+fig.update_xaxes(
+    tickformat=",",
+    rangemode="tozero",
+)
+
+fig.update_yaxes(showticklabels=False)
+
+st.plotly_chart(
+    fig,
+    use_container_width=True,
+)
